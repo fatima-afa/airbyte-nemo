@@ -8,8 +8,26 @@
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "Destination Sredx",
     "type": "object",
-    "required": [],
+    "required": ["target_stream"],
     "additionalProperties": false,
-    "properties": {}
+    "properties": {
+      "target_stream": {
+        "type": "string",
+        "title": "Metric",
+        "description": "Choisissez l'intégration de destination",
+        "enum": [
+          "branches",
+          "TimeToMerge",
+          "TimeToReview",
+          "issues",
+          "organizations",
+          "repositories",
+          "stargazers",
+          "tags",
+          "teams",
+          "users"
+        ]
+      }
+    }
   }
 }

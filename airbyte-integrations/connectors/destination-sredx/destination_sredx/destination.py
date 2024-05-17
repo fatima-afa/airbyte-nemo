@@ -3,30 +3,70 @@
 #
 from typing import Any, Iterable, Mapping
 import requests
+import datetime
+import re
 from airbyte_cdk import AirbyteLogger
 from airbyte_cdk.destinations import Destination
 from airbyte_cdk.models import AirbyteConnectionStatus, AirbyteMessage, ConfiguredAirbyteCatalog, Status, Type
-
+import logging
+logger = logging.getLogger("airbyte")
 
 class DestinationSredx(Destination):
+
+    # def serialize_message(self,message):
+    # # Serialize the AirbyteMessage object to a dictionary
+    #     if message.type == Type.RECORD and message.record is not None:
+    #         return {
+    #             'object': message.record.data,
+    #             # Add other fields as needed
+    #         }
+    #     return {}
+    
+    # def convert_to_json_string(self,messages):
+    #     # Serialize each message to a dictionary
+    #     serialized_messages= [self.serialize_message(message) for message in messages]
+    #     # Convert the list of dictionaries to a JSON string
+    #     return json.dumps(serialized_messages)
    
     def write(
         self, config: Mapping[str, Any], configured_catalog: ConfiguredAirbyteCatalog, input_messages: Iterable[AirbyteMessage]
     ) -> Iterable[AirbyteMessage]:
-        # self.integration = config.get("integration")
+        # streams = {s.stream.name for s in configured_catalog.streams}
+        # client_id = config.get("client_id")
+        # client_secret = config.get("client_secret")
+        # # Assuming your endpoint requires Basic Authentication
+        # auth = (client_id, client_secret)
+        # headers = {'Content-Type': 'application/json'}
+        # # self.integration = config.get("integration")
         # target_stream = config.get("target_stream")
-        message_pull_requests=[]
+        # message_pull_requests=[]
         # if target_stream == "pull_requests":
-        #     for message in input_messages:
-        #         if message.type == Type.RECORD:
-        #             message_pull_requests.append(message.record)
-        for message in input_messages:
-            if message.type == Type.RECORD:
-                message_pull_requests.append(message.record)
-        response = requests.post("https://script.google.com/macros/s/AKfycbykKF25pYQxApZhQYuUp1yBReYP7QGnajFAUifH_EQ9zN_w5xS2hfHIpl-3-wFFwnm6/exec",json={"namee":"afaa1"})
-        # response = requests.post("https://script.google.com/macros/s/AKfycbykKF25pYQxApZhQYuUp1yBReYP7QGnajFAUifH_EQ9zN_w5xS2hfHIpl-3-wFFwnm6/exec",json=message_pull_requests)
+        # message_pull_requests = self.convert_to_json_string(input_messages)
+        url = "http://localhost:8080/api/v2/webHooks/metrics"
+        payloads=[]
+        target_stream = config.get("target_stream") 
+        if(target_stream =="TimeToMerge"):
+            for message in input_messages:
+                if message.type == Type.RECORD:
+                    record=message.record   
+                    emitted_at_datetime = datetime.datetime.fromtimestamp(record.emitted_at / 1000)  
+                    emitted_at = emitted_at_datetime.strftime('%Y-%m-%dT%H:%M:%S')
+                    git_repo=re.search(r'repos/(.*?)/pulls/.*',record.data['url']).group(1)
+                    logger.info(f"record ------------{record} ")
+                    payload = {
+                        "idPullRequest": str(record.data['id']),
+                        "gitRepo": git_repo,
+                        "createdAt": record.data['created_at'],
+                        "closedAt": record.data['closed_at'],
+                        "mergedAt": record.data['merged_at'],
+                        "state": record.data['state'],
+                        "emittedAt": emitted_at
+                    }
 
+                    payloads.append(payload)
+                    yield AirbyteMessage(type=Type.RECORD, record=record)
 
+        response = requests.post(url, json={"source":"Git","metric":"TimeToMerge","data":payloads})
 
         """
         TODO
@@ -44,7 +84,7 @@ class DestinationSredx(Destination):
         :return: Iterable of AirbyteStateMessages wrapped in AirbyteMessage structs
         """
 
-        pass
+        yield AirbyteMessage(type=Type.STATE, value="") 
 
     def check(self, logger: AirbyteLogger, config: Mapping[str, Any]) -> AirbyteConnectionStatus:
         """
