@@ -4,5 +4,6 @@
 
 
 from .destination import DestinationSredx
+from .config import env
 
 __all__ = ["DestinationSredx"]
